@@ -21,7 +21,8 @@
       <!-- This is picked up by apache and redirected to the actual shib logout -->
       <s:logout logout-success-url="/ShibLogout"/>
    </http>
-      
+
+<!-- This is for reading user roles from a remote DB
    <authentication-manager alias="authenticationManager" />
    
    <beans:bean id="preAuthenticatedProcessingFilter" 
@@ -29,6 +30,7 @@
       <custom-filter position="PRE_AUTH_FILTER"/>
       <beans:property name="authenticationManager" ref="authenticationManager" />
    </beans:bean>
+
 
    <beans:bean id="preAuthenticatedAuthenticationProvider" 
             class="org.springframework.security.providers.preauth.PreAuthenticatedAuthenticationProvider">
@@ -43,16 +45,48 @@
 
    <authentication-provider user-service-ref='myUserDetailsService'/>
 
+
    <beans:bean id="myUserDetailsService" class="org.springframework.security.userdetails.jdbc.JdbcDaoImpl">
       <beans:property name="dataSource" ref="dataSource"/>
    </beans:bean>
-
-   <!-- This userDetailsService implementation is handy for quick testing   
-   <authentication-provider>
-      <user-service id="userDetailsService">
-         <user password="password" name="Jarek.Sanders@csiro.au" authorities="ROLE_JOB_SUBMISSION" />
-      </user-service>
-   </authentication-provider>
    -->
+
+   <!-- We use our own user details service so that we can assign ROLE_USER to users that authenticate with AAF but are unknown to us -->
+   <beans:bean id="portalUserDetailsService" class="org.auscope.portal.server.web.security.PortalUserDetailsService">
+   	  	<beans:constructor-arg index="0" value="ROLE_USER"/>
+   	  	<beans:constructor-arg index="1">
+   	  		<beans:list>
+   	  			<!-- Josh.Vote@csiro.au -->
+   				<beans:bean class="org.auscope.portal.server.web.security.PortalUser">
+   					<beans:constructor-arg index="0" value="v04hL1lRsd91/d/HCDWBYqf2bYo="/>
+   					<beans:constructor-arg index="1" value=""/>
+   					<beans:constructor-arg index="2" value="ROLE_ADMINISTRATOR"/>			
+   				</beans:bean> 	  			
+   	  		</beans:list>
+   	  	</beans:constructor-arg>
+   </beans:bean>
+   
+   <authentication-provider user-service-ref="portalUserDetailsService"/>
+ 
+   <authentication-manager alias="authenticationManager" />
+   
+   <beans:bean id="preAuthenticatedProcessingFilter" 
+            class="org.auscope.portal.server.web.security.PreAuthenticatedProcessingFilter">
+      <custom-filter position="PRE_AUTH_FILTER"/>
+      <beans:property name="authenticationManager" ref="authenticationManager" />
+   </beans:bean>
+
+   <beans:bean id="preAuthenticatedAuthenticationProvider" 
+            class="org.springframework.security.providers.preauth.PreAuthenticatedAuthenticationProvider">
+      <custom-authentication-provider />
+      <beans:property name="preAuthenticatedUserDetailsService">
+         <beans:bean id="userDetailsServiceWrapper"   
+                  class="org.springframework.security.userdetails.UserDetailsByNameServiceWrapper">
+            <beans:property name="userDetailsService" ref="portalUserDetailsService"/>
+         </beans:bean>
+      </beans:property>
+   </beans:bean>
+   </beans:bean>
+   
 
 </beans:beans>
