@@ -2,15 +2,15 @@
          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
     <modelVersion>4.0.0</modelVersion>
-    <groupId>org.auscope.portal</groupId>
-    <artifactId>GeodesyWorkflow</artifactId>
+    <groupId>org.auscope.cmarportal</groupId>
+    <artifactId>CMAR-Portal</artifactId>
     <packaging>war</packaging>
-    <version>1.0.0</version>
-    <name>Geodesy Workflow Portal Maven Webapp</name>
+    <version>0.0.0</version>
+    <name>CMAR Workflow Portal Maven Webapp</name>
     <url>http://maven.apache.org</url>
     <scm>
-        <connection>scm:svn:https://svn.auscope.org/subversion/AuScopePortal/GeodesyWorkflow/trunk</connection>
-        <developerConnection>scm:svn:https://svn.auscope.org/subversion/AuScopePortal/GeodesyWorkflow/trunk</developerConnection>
+        <connection>scm:svn:https://svn.auscope.org/subversion/AuScopePortal/CMAR-Portal/trunk</connection>
+        <developerConnection>scm:svn:https://svn.auscope.org/subversion/AuScopePortal/CMAR-Portal/trunk</developerConnection>
     </scm>
     <reporting>
       <plugins>
@@ -31,7 +31,7 @@
       </plugins>
     </reporting>        
     <build>
-        <finalName>GeodesyWorkflow</finalName>
+        <finalName>CMAR-Portal</finalName>
         <plugins>
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
