@@ -22,6 +22,7 @@ FormFactory.prototype.getFilterForm = function(record) {
         case 'er:Mine': return new MineFilterForm(record.get('id'), record.get('serviceURLs')[0]); break;
         case 'er:MiningActivity': return new MiningActivityFilterForm(record.get('id'), record.get('serviceURLs')[0]); break;
         case 'er:MineralOccurrence': return new MineralOccurrenceFilterForm(record.get('id')); break;
+        case 'auscope:TIGER_CATCH': return new PrawnFilterForm(record); break;
         default: return null; break;
     }
 };

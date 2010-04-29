@@ -26,6 +26,7 @@
                 <ref bean="knownTypeMiningActivity" />
                 <ref bean="knownTypeBorehole" />  -->
                 <ref bean="knownTypeGeodesy" />
+                <ref bean="knownTypeTigerCatch" />
             </list>
         </constructor-arg>
     </bean>
@@ -66,8 +67,16 @@
        <constructor-arg index="0" value="ngcp:GnssStation"/>
        <constructor-arg index="1" value="Geodesy"/>
        <constructor-arg index="2" value=""/>
-       <constructor-arg index="3" value="/getAllFeatures.do"/>
+       <constructor-arg index="3" value="getAllFeatures.do"/>
        <constructor-arg index="4" value="http://maps.google.com/mapfiles/kml/paddle/wht-blank.png"/>
+   </bean>
+
+   <bean id="knownTypeTigerCatch" class="org.auscope.portal.server.web.KnownFeatureTypeDefinition">
+       <constructor-arg index="0" value="auscope:TIGER_CATCH"/>
+       <constructor-arg index="1" value="CMAR Tiger Prawn Catch"/>
+       <constructor-arg index="2" value=""/>
+       <constructor-arg index="3" value="requestPrawns.do"/>
+       <constructor-arg index="4" value="http://maps.google.com/mapfiles/kml/paddle/pink-blank.png"/>
    </bean>
    <!-- Added for GeodesyWorkflow -->
    <bean id="multipartResolver"

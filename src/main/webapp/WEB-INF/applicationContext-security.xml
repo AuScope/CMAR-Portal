@@ -86,7 +86,5 @@
          </beans:bean>
       </beans:property>
    </beans:bean>
-   </beans:bean>
-   
 
 </beans:beans>
