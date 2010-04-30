@@ -11,8 +11,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.rmi.ServerException;
-import java.util.Arrays;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Vector;
 import java.util.zip.ZipEntry;
@@ -23,12 +21,12 @@ import javax.servlet.http.HttpServletResponse;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.auscope.portal.server.gridjob.CMARJobManager;
 
 import org.auscope.portal.server.gridjob.FileInformation;
 import org.auscope.portal.server.gridjob.GridAccessController;
 import org.auscope.portal.server.gridjob.Util;
-import org.auscope.portal.server.gridjob.GeodesyJob;
-import org.auscope.portal.server.gridjob.GeodesyJobManager;
+import org.auscope.portal.server.gridjob.CMARJob;
 import org.auscope.portal.server.gridjob.GeodesySeries;
 import org.globus.ftp.DataChannelAuthentication;
 import org.globus.ftp.GridFTPClient;
@@ -38,12 +36,8 @@ import org.globus.ftp.FileInfo;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.ModelMap;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.ModelAndView;
-import org.auscope.portal.server.web.view.JSONModelAndView;
-import org.springframework.web.servlet.mvc.multiaction.MultiActionController;
-import org.springframework.web.servlet.mvc.multiaction.NoSuchRequestHandlingMethodException;
 import org.springframework.web.servlet.view.RedirectView;
 
 /**
@@ -61,7 +55,7 @@ public class JobListController {
     @Autowired
     private GridAccessController gridAccess;
     @Autowired
-    private GeodesyJobManager jobManager;
+    private CMARJobManager jobManager;
 
     /**
      * Sets the <code>GridAccessController</code> to be used for grid
@@ -116,7 +110,7 @@ public class JobListController {
                                          HttpServletResponse response) {
 
         String jobIdStr = request.getParameter("jobId");
-        GeodesyJob job = null;
+        CMARJob job = null;
         ModelAndView mav = new ModelAndView("jsonView");
         Object credential = request.getSession().getAttribute("userCred");
 
@@ -176,7 +170,7 @@ public class JobListController {
                                 HttpServletResponse response) {
 
         String jobIdStr = request.getParameter("jobId");
-        GeodesyJob job = null;
+        CMARJob job = null;
         ModelAndView mav = new ModelAndView("jsonView");
         boolean success = false;
         Object credential = request.getSession().getAttribute("userCred");
@@ -201,25 +195,9 @@ public class JobListController {
             logger.warn("No job ID specified!");
         }
 
-        if (job == null) {
-            final String errorString = "The requested job was not found.";
-            logger.error(errorString);
-            mav.addObject("error", errorString);
 
-        } else {
-            // check if current user is the owner of the job
-            GeodesySeries s = jobManager.getSeriesById(job.getSeriesId());
-            if (request.getRemoteUser().equals(s.getUser())) {
-                logger.info("Deleting job with ID "+jobIdStr);
-                jobManager.deleteJob(job);
-                success = true;
-            } else {
-                logger.warn(request.getRemoteUser()+"'s attempt to kill "+
-                        s.getUser()+"'s job denied!");
-                mav.addObject("error", "You are not authorised to delete this job.");
-            }
-        }
-        mav.addObject("success", success);
+        //Disabled
+        mav.addObject("success", false);
 
         return mav;
     }
@@ -237,7 +215,7 @@ public class JobListController {
                                        HttpServletResponse response) {
 
         String seriesIdStr = request.getParameter("seriesId");
-        List<GeodesyJob> jobs = null;
+        List<CMARJob> jobs = null;
         ModelAndView mav = new ModelAndView("jsonView");
         boolean success = false;
         int seriesId = -1;
@@ -252,60 +230,10 @@ public class JobListController {
         }
 
 
-        if (seriesIdStr != null) {
-            try {
-                seriesId = Integer.parseInt(seriesIdStr);
-                jobs = jobManager.getSeriesJobs(seriesId);
-            } catch (NumberFormatException e) {
-                logger.error("Error parsing series ID!");
-            }
-        } else {
-            logger.warn("No series ID specified!");
-        }
+        
 
-        if (jobs == null) {
-            final String errorString = "The requested series was not found.";
-            logger.error(errorString);
-            mav.addObject("error", errorString);
-            mav.addObject("success", false);
-
-        } else {
-            // check if current user is the owner of the series
-            GeodesySeries s = jobManager.getSeriesById(seriesId);
-            if (request.getRemoteUser().equals(s.getUser())) {
-                logger.info("Deleting jobs of series "+seriesIdStr);
-                boolean jobsDeleted = true;
-                for (GeodesyJob job : jobs) {
-                    String oldStatus = job.getStatus();
-                    if (oldStatus.equals("Failed") || oldStatus.equals("Done") ||
-                            oldStatus.equals("Cancelled")) {
-                        jobManager.deleteJob(job);
-                        
-                    }else{
-                    	logger.debug("Skipping running job "+job.getId());
-                    	if(jobsDeleted){
-                    		jobsDeleted = false;
-                    		mav.addObject("error", "Can not delete series, there are running jobs.");
-                    	}        	
-                    	continue;                  	
-                    }
-                }
-                if(jobsDeleted){
-                	logger.info("Deleting series "+seriesIdStr);
-                	jobManager.deleteSeries(s);
-                	logger.info("Deleted series "+seriesIdStr);
-                	success = true;
-                }else{
-                	success = false;
-                }
-            } else {
-                logger.warn(request.getRemoteUser()+"'s attempt to delete "+
-                        s.getUser()+"'s jobs denied!");
-                mav.addObject("error", "You are not authorised to delete the jobs of this series.");
-            }
-        }
-
-        mav.addObject("success", success);
+        //disabled
+        mav.addObject("success", false);
         return mav;
     }
     
@@ -323,7 +251,7 @@ public class JobListController {
                                 HttpServletResponse response) {
 
         String jobIdStr = request.getParameter("jobId");
-        GeodesyJob job = null;
+        CMARJob job = null;
         ModelAndView mav = new ModelAndView("jsonView");
         boolean success = false;
         Object credential = request.getSession().getAttribute("userCred");
@@ -348,32 +276,8 @@ public class JobListController {
             logger.warn("No job ID specified!");
         }
 
-        if (job == null) {
-            final String errorString = "The requested job was not found.";
-            logger.error(errorString);
-            mav.addObject("error", errorString);
-
-        } else {
-            // check if current user is the owner of the job
-            GeodesySeries s = jobManager.getSeriesById(job.getSeriesId());
-            if (request.getRemoteUser().equals(s.getUser())) {
-                logger.info("Cancelling job with ID "+jobIdStr);
-                String newState = gridAccess.killJob(
-                        job.getReference(), credential);
-                if (newState == null)
-                    newState = "Cancelled";
-                logger.debug("New job state: "+newState);
-
-                job.setStatus(newState);
-                jobManager.saveJob(job);
-                success = true;
-            } else {
-                logger.warn(request.getRemoteUser()+"'s attempt to kill "+
-                        s.getUser()+"'s job denied!");
-                mav.addObject("error", "You are not authorised to cancel this job.");
-            }
-        }
-        mav.addObject("success", success);
+        //Disabled
+        mav.addObject("success", false);
 
         return mav;
     }
@@ -392,7 +296,7 @@ public class JobListController {
                                        HttpServletResponse response) {
 
         String seriesIdStr = request.getParameter("seriesId");
-        List<GeodesyJob> jobs = null;
+        List<CMARJob> jobs = null;
         ModelAndView mav = new ModelAndView("jsonView");
         boolean success = false;
         int seriesId = -1;
@@ -407,54 +311,8 @@ public class JobListController {
         }
 
 
-        if (seriesIdStr != null) {
-            try {
-                seriesId = Integer.parseInt(seriesIdStr);
-                jobs = jobManager.getSeriesJobs(seriesId);
-            } catch (NumberFormatException e) {
-                logger.error("Error parsing series ID!");
-            }
-        } else {
-            logger.warn("No series ID specified!");
-        }
-
-        if (jobs == null) {
-            final String errorString = "The requested series was not found.";
-            logger.error(errorString);
-            mav.addObject("error", errorString);
-            mav.addObject("success", false);
-
-        } else {
-            // check if current user is the owner of the series
-            GeodesySeries s = jobManager.getSeriesById(seriesId);
-            if (request.getRemoteUser().equals(s.getUser())) {
-                logger.info("Cancelling jobs of series "+seriesIdStr);
-                for (GeodesyJob job : jobs) {
-                    String oldStatus = job.getStatus();
-                    if (oldStatus.equals("Failed") || oldStatus.equals("Done") ||
-                            oldStatus.equals("Cancelled")) {
-                        logger.debug("Skipping finished job "+job.getId());
-                        continue;
-                    }
-                    logger.info("Killing job with ID "+job.getId());
-                    String newState = gridAccess.killJob(
-                            job.getReference(), credential);
-                    if (newState == null)
-                        newState = "Cancelled";
-                    logger.debug("New job state: "+newState);
-
-                    job.setStatus(newState);
-                    jobManager.saveJob(job);
-                }
-                success = true;
-            } else {
-                logger.warn(request.getRemoteUser()+"'s attempt to kill "+
-                        s.getUser()+"'s jobs denied!");
-                mav.addObject("error", "You are not authorised to cancel the jobs of this series.");
-            }
-        }
-
-        mav.addObject("success", success);
+        //Disabled
+        mav.addObject("success", false);
         return mav;
     }
 
@@ -477,7 +335,7 @@ public class JobListController {
         String jobIdStr = request.getParameter("jobId");
         String dirPathStr = request.getParameter("dirPath");
         String dirNameStr = request.getParameter("dirName");
-        GeodesyJob job = null;
+        CMARJob job = null;
         ModelAndView mav = new ModelAndView("jsonView");
         Object credential = request.getSession().getAttribute("userCred");
 
@@ -504,13 +362,13 @@ public class JobListController {
 
         } else {
         	if(dirPathStr == null){
-        		fileDetails = getDirectoryListing(job.getOutputDir(), credential);
+        		fileDetails = getDirectoryListing(job.getRemoteOutputDir(), credential);
         	}else{
         		if(dirNameStr == null || dirNameStr.equals(".")){
         		   fileDetails = getDirectoryListing(dirPathStr, credential);
         		}else if(dirNameStr.equals("..")){
         			// This is the top directory for this job, cannot allow further up
-        			if(dirPathStr.equals(job.getOutputDir()))
+        			if(dirPathStr.equals(job.getRemoteOutputDir()))
         				fileDetails = getDirectoryListing(dirPathStr, credential);
         			else
         			{
@@ -544,7 +402,7 @@ public class JobListController {
 
         String jobIdStr = request.getParameter("jobId");
         String fileName = request.getParameter("filename");
-        GeodesyJob job = null;
+        CMARJob job = null;
         String errorString = null;
 
         if (jobIdStr != null) {
@@ -558,7 +416,7 @@ public class JobListController {
 
         if (job != null && fileName != null) {
             logger.debug("Download "+fileName+" of job with ID "+jobIdStr+".");
-            File f = new File(job.getOutputDir()+File.separator+fileName);
+            File f = new File(job.getRemoteOutputDir()+File.separator+fileName);
             if (!f.canRead()) {
                 logger.error("File "+f.getPath()+" not readable!");
                 errorString = new String("File could not be read.");
@@ -620,7 +478,7 @@ public class JobListController {
 
         String jobIdStr = request.getParameter("jobId");
         String filesParam = request.getParameter("files");
-        GeodesyJob job = null;
+        CMARJob job = null;
         String errorString = null;
 
         if (jobIdStr != null) {
@@ -646,7 +504,7 @@ public class JobListController {
                 ZipOutputStream zout = new ZipOutputStream(
                         response.getOutputStream());
                 for (String fileName : fileNames) {
-                    File f = new File(job.getOutputDir()+File.separator+fileName);
+                    File f = new File(job.getRemoteOutputDir()+File.separator+fileName);
                     if (!f.canRead()) {
                         // if a file could not be read we go ahead and try the
                         // next one.
@@ -700,50 +558,20 @@ public class JobListController {
     }
 
     /**
-     * Returns a JSON object containing an array of series that match the query
-     * parameters.
-     *
-     * @param request The servlet request with query parameters
-     * @param response The servlet response
-     *
-     * @return A JSON object with a series attribute which is an array of
-     *         GeodesySeries objects matching the criteria.
-     */
-    @RequestMapping("/querySeries.do")
-    public ModelAndView querySeries(HttpServletRequest request,
-                                    HttpServletResponse response) {
-
-        String qUser = request.getParameter("qUser");
-        String qName = request.getParameter("qSeriesName");
-        String qDesc = request.getParameter("qSeriesDesc");
-
-        if (qUser == null && qName == null && qDesc == null) {
-            qUser = request.getRemoteUser();
-            logger.debug("No query parameters provided. Will return "+qUser+"'s series.");
-        }
-
-        logger.debug("qUser="+qUser+", qName="+qName+", qDesc="+qDesc);
-        List<GeodesySeries> series = jobManager.querySeries(qUser, qName, qDesc);
-
-        logger.debug("Returning list of "+series.size()+" series.");
-        return new ModelAndView("jsonView", "series", series);
-    }
-
-    /**
      * Returns a JSON object containing an array of jobs for the given series.
      *
      * @param request The servlet request including a seriesId parameter
      * @param response The servlet response
      *
      * @return A JSON object with a jobs attribute which is an array of
-     *         <code>GeodesyJob</code> objects.
+     *         <code>CMARJob</code> objects.
      */
     @RequestMapping("/listJobs.do")
     public ModelAndView listJobs(HttpServletRequest request,
                                  HttpServletResponse response) {
 
         String seriesIdStr = request.getParameter("seriesId");
-        List<GeodesyJob> seriesJobs = null;
+        List<CMARJob> seriesJobs = null;
         ModelAndView mav = new ModelAndView("jsonView");
         Object credential = request.getSession().getAttribute("userCred");
         int seriesId = -1;
@@ -756,162 +584,17 @@ public class JobListController {
             return mav;
         }
 
-        if (seriesIdStr != null) {
-            try {
-                seriesId = Integer.parseInt(seriesIdStr);
-                seriesJobs = jobManager.getSeriesJobs(seriesId);
-            } catch (NumberFormatException e) {
-                logger.error("Error parsing series ID '"+seriesIdStr+"'");
-            }
-        } else {
-            logger.warn("No series ID specified!");
-        }
-
-        if (seriesJobs != null) {
-            // check if current user is the owner of the series and update
-            // the status of the jobs if so
-            GeodesySeries s = jobManager.getSeriesById(seriesId);
-            if (request.getRemoteUser().equals(s.getUser())) {
-                logger.debug("Updating status of jobs attached to series " +
-                        seriesIdStr + ".");
-                for (GeodesyJob j : seriesJobs) {
-                    String state = j.getStatus();
-                    if (!state.equals("Done") && !state.equals("Failed") &&
-                            !state.equals("Cancelled")) {
-                        String newState = gridAccess.retrieveJobStatus(
-                                j.getReference(), credential);
-                        if (newState != null && !state.equals(newState)) {
-                            j.setStatus(newState);
-                            jobManager.saveJob(j);
-                        }else if(newState == null){ 
-                        	if (directoryExist(j.getOutputDir(), credential)){
-                                // job might have finished but status cannot be
-                                // retrieved anymore -> a good heuristics is to check
-                                // if the job files have been staged out and assume
-                                // success if that is the case.
-                                j.setStatus("Done");
-                                jobManager.saveJob(j);                        	   
-                            }else{
-                            	j.setStatus("Failed");
-                                jobManager.saveJob(j);
-                            }                            
-                        }
-                    }
-                }
-            }
-            mav.addObject("jobs", seriesJobs);
-        }
-
+       
+            
+        
+        //Disabled
         logger.debug("Returning series job list");
         return mav;
     }
 
-    /**
-     * Re-submits a single job.
-     *
-     * @param request The servlet request including a jobId parameter
-     * @param response The servlet response
-     *
-     * @return The scriptbuilder view prepared to resubmit the job or the
-     *         joblist view with an error parameter if the job was not found.
-     */
-    @RequestMapping("/resubmitJob.do")
-    public ModelAndView resubmitJob(HttpServletRequest request,
-                                    HttpServletResponse response) {
+    
 
-        String jobIdStr = request.getParameter("jobId");
-        GeodesyJob job = null;
-
-        if (jobIdStr != null) {
-            try {
-                int jobId = Integer.parseInt(jobIdStr);
-                job = jobManager.getJobById(jobId);
-            } catch (NumberFormatException e) {
-                logger.error("Error parsing job ID!");
-            }
-        } else {
-            logger.warn("No job ID specified!");
-        }
-
-        if (job == null) {
-            final String errorString = "Could not retrieve job details!";
-            logger.error(errorString);
-            return new ModelAndView("joblist", "error", errorString);
-        }
-
-        logger.info("Re-submitting job " + jobIdStr + ".");
-        request.getSession().setAttribute("resubmitJob", jobIdStr);
-        return useScript(request, response);
-    }
-
-    /**
-     * Allows the user to edit a copy of an input script from a previous job
-     * and use it for a new job.
-     *
-     * @param request The servlet request including a jobId parameter
-     * @param response The servlet response
-     *
-     * @return The scriptbuilder model and view for editing the script or
-     *         the joblist model and view with an error parameter if the job
-     *         or file was not found.
-     */
-    @RequestMapping("/useScript.do")
-    public ModelAndView useScript(HttpServletRequest request,
-                                  HttpServletResponse response) {
-
-        String jobIdStr = request.getParameter("jobId");
-
-        GeodesyJob job = null;
-        String errorString = null;
-        String scriptFileName = null;
-        File sourceFile = null;
-
-        if (jobIdStr != null) {
-            try {
-                int jobId = Integer.parseInt(jobIdStr);
-                job = jobManager.getJobById(jobId);
-            } catch (NumberFormatException e) {
-                logger.error("Error parsing job ID!");
-            }
-        } else {
-            logger.warn("No job ID specified!");
-        }
-
-        if (job == null) {
-            errorString = new String("Could not access the job!");
-            logger.error(errorString);
-        } else {
-            scriptFileName = job.getScriptFile();
-            sourceFile = new File(
-                    job.getOutputDir()+File.separator+scriptFileName);
-            if (!sourceFile.canRead()) {
-                errorString = new String("Script file could not be read.");
-                logger.error("File "+sourceFile.getPath()+" not readable!");
-            }
-        }
-
-        if (errorString == null) {
-            logger.debug("Copying script file of job " + jobIdStr + " to temp.");
-            String tempDir = System.getProperty("java.io.tmpdir");
-            File tempScript = new File(tempDir+File.separator+scriptFileName);
-            boolean success = Util.copyFile(sourceFile, tempScript);
-            if (success) {
-                tempScript.deleteOnExit();
-            } else {
-                errorString = new String("Script file could not be read.");
-                logger.error(errorString);
-            }
-        }
-
-        if (errorString != null) {
-            request.getSession().removeAttribute("resubmitJob");
-            return new ModelAndView("joblist", "error", errorString);
-        }
-
-        request.getSession().setAttribute("scriptFile", scriptFileName);
-        return new ModelAndView(
-                new RedirectView("/scriptbuilder.html", true, false, false));
-    }
+    
     /**
      * This method using GridFTP Client returns directory list of stageOut directory 
      * and sub directories.

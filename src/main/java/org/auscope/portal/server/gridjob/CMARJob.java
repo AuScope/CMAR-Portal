@@ -18,6 +18,7 @@ import org.auscope.gridtools.GridJob;
  * @author Josh Vote
  */
 public class CMARJob extends GridJob {
+
     public static final String STATUS_UNSUBMITTED = "UNSUBMITTED";
     public static final String STATUS_SUBMITTED_R = "SUBMITTED_R";
     public static final String STATUS_COMPLETE = "COMPLETE";
@@ -32,8 +33,6 @@ public class CMARJob extends GridJob {
     private String    description;
     /** A unique identifier for this job */
     private Integer   id;
-    /** Directory containing output files */
-    private String    workingDir;
     /** A unique job reference (e.g. EPR). */
     private String    reference;
     /** The descriptive job title */
@@ -44,6 +43,7 @@ public class CMARJob extends GridJob {
     /** The version of code to run at */
     private String    version;
 
+
     /** The job start date */
     private Date startDate;
 
@@ -53,8 +53,9 @@ public class CMARJob extends GridJob {
     /** The current status of the job*/
     private String jobStatus;
 
-    /** The list of species this job references*/
-    private String[] speciesCodes;
+    private String remoteInputDir;
+    private String localInputDir;
+    private String remoteOutputDir;
 
 
 
@@ -68,9 +69,8 @@ public class CMARJob extends GridJob {
      */
     public CMARJob() {
         super();
-        description = workingDir = reference = name = site = version = jobStatus = "";
+        remoteOutputDir = remoteInputDir = description = localInputDir = reference = name = site = version = jobStatus = "";
         id = 0;
-        speciesCodes = new String[0];
         startDate = endDate = new Date();
         setCode(CODE_NAME);
         setJobType(JOB_TYPE);
@@ -103,9 +103,8 @@ public class CMARJob extends GridJob {
         super(site, name, CODE_NAME, version, arguments, queue, JOB_TYPE,
                 maxWallTime, maxMemory, cpuCount, inTransfers, outTransfers,
                 emailAddress, stdInput, stdOutput, stdError);
-        description = workingDir = reference = name = site = version = jobStatus = "";
+        remoteOutputDir = remoteInputDir = description = localInputDir = reference = name = site = version = jobStatus = "";
         id = 0;
-        speciesCodes = new String[0];
         startDate = endDate = new Date();
     }
 
@@ -193,13 +192,6 @@ public class CMARJob extends GridJob {
         this.endDate = endDate;
     }
 
-    public String[] getSpeciesCodes() {
-        return speciesCodes;
-    }
-
-    public void setSpeciesCodes(String[] speciesCodes) {
-        this.speciesCodes = speciesCodes;
-    }
 
     public Date getStartDate() {
         return startDate;
@@ -209,12 +201,29 @@ public class CMARJob extends GridJob {
         this.startDate = startDate;
     }
 
-    public String getWorkingDir() {
-        return workingDir;
+
+     public String getLocalInputDir() {
+        return localInputDir;
     }
 
-    public void setWorkingDir(String workingDir) {
-        this.workingDir = workingDir;
+    public void setLocalInputDir(String localInputDir) {
+        this.localInputDir = localInputDir;
+    }
+
+    public String getRemoteInputDir() {
+        return remoteInputDir;
+    }
+
+    public void setRemoteInputDir(String remoteInputDir) {
+        this.remoteInputDir = remoteInputDir;
+    }
+
+    public String getRemoteOutputDir() {
+        return remoteOutputDir;
+    }
+
+    public void setRemoteOutputDir(String remoteOutputDir) {
+        this.remoteOutputDir = remoteOutputDir;
     }
 
 	/**

@@ -22,10 +22,10 @@
          <ul >
             <li <%if (request.getRequestURL().toString().contains("/gmap.jsp")) {%>class="current" <%} %>><a href="gmap.html">Map Client<span></span></a></li>
             <security:authorize ifAllGranted="ROLE_JOB_SUBMISSION"> </security:authorize>
-            <li <%if (request.getRequestURL().toString().contains("/data_service_tool.jsp")) {%>class="current" <%} %>><a href="data_service_tool.html">Data Service<span></span></a></li>
+            
             <li <%if (request.getRequestURL().toString().contains("/gridsubmit.jsp")) {%>class="current" <%} %>><a href="gridsubmit.html">Submit Jobs<span></span></a></li>
             <li <%if (request.getRequestURL().toString().contains("/joblist.jsp")) {%>class="current" <%} %>><a href="joblist.html">Monitor Jobs<span></span></a></li>
-            <li <%if (request.getRequestURL().toString().contains("/gpsview.jsp")) {%>class="current" <%} %>><a href="gpsview.html">GPS View<span></span></a></li>
+            
             
             <security:authorize ifAllGranted="ROLE_ANONYMOUS">
             	<li ><a href="login.html">Login<span></span></a></li>

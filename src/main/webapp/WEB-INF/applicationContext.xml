@@ -84,12 +84,11 @@
         <property name="maxUploadSize" value="${fileupload.maxFileSize}"/>
    </bean>
 
-    <bean id="geodesySessionFactory" class="org.springframework.orm.hibernate3.LocalSessionFactoryBean">
+    <bean id="cmarSessionFactory" class="org.springframework.orm.hibernate3.LocalSessionFactoryBean">
         <property name="dataSource" ref="dataSource"/>
         <property name="mappingResources">
             <list>
-                <value>geodesyjob.hbm.xml</value>
-                <value>geodesyseries.hbm.xml</value>
+                <value>cmarjob.hbm.xml</value>
                 <value>user.hbm.xml</value>
             </list>
         </property>
@@ -99,24 +98,21 @@
     </bean>
 
     <bean id="transactionManager" class="org.springframework.orm.hibernate3.HibernateTransactionManager">
-        <property name="sessionFactory" ref="geodesySessionFactory"/>
+        <property name="sessionFactory" ref="cmarSessionFactory"/>
     </bean>
 
-    <bean id="geodesyJobDao" class="org.auscope.portal.server.gridjob.GeodesyJobDao">
-        <property name="sessionFactory" ref="geodesySessionFactory"/>
+    <bean id="cmarJobDao" class="org.auscope.portal.server.gridjob.CMARJobDao">
+        <property name="sessionFactory" ref="cmarSessionFactory"/>
     </bean>
 
-    <bean id="geodesySeriesDao" class="org.auscope.portal.server.gridjob.GeodesySeriesDao">
-        <property name="sessionFactory" ref="geodesySessionFactory"/>
-    </bean>
+    
 
     <bean id="userDao" class="org.auscope.portal.server.web.security.UserDao">
-        <property name="sessionFactory" ref="geodesySessionFactory"/>
+        <property name="sessionFactory" ref="cmarSessionFactory"/>
     </bean>
     
-    <bean id="geodesyJobManager" class="org.auscope.portal.server.gridjob.GeodesyJobManager">
-        <property name="geodesyJobDao" ref="geodesyJobDao"/>
-        <property name="geodesySeriesDao" ref="geodesySeriesDao"/>
+    <bean id="cmarJobManager" class="org.auscope.portal.server.gridjob.CMARJobManager">
+        <property name="cmarJobDao" ref="cmarJobDao"/>
     </bean>
 
     <bean id="gridAccess" class="org.auscope.portal.server.gridjob.GridAccessController">

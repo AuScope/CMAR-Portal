@@ -8,6 +8,7 @@ package org.auscope.portal.server.web.controllers;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintWriter;
@@ -37,18 +38,15 @@ import org.apache.commons.httpclient.methods.GetMethod;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
-import org.auscope.portal.csw.CSWNamespaceContext;
 import org.auscope.portal.csw.CSWRecord;
 import org.auscope.portal.csw.ICSWMethodMaker;
+import org.auscope.portal.server.gridjob.CMARJob;
+import org.auscope.portal.server.gridjob.CMARJobManager;
 
 import org.auscope.portal.server.gridjob.FileInformation;
 import org.auscope.portal.server.gridjob.GridAccessController;
-import org.auscope.portal.server.gridjob.ScriptParser;
 import org.auscope.portal.server.gridjob.Util;
-import org.auscope.portal.server.gridjob.GeodesyJob;
-import org.auscope.portal.server.gridjob.GeodesyJobManager;
 import org.auscope.portal.server.gridjob.GeodesySeries;
-import org.auscope.portal.server.util.GeodesyUtil;
 import org.auscope.portal.server.web.service.CSWService;
 import org.auscope.portal.server.web.service.HttpServiceCaller;
 
@@ -91,15 +89,21 @@ public class GridSubmitController {
     @Autowired
     private GridAccessController gridAccess;
     @Autowired
-    private GeodesyJobManager jobManager;
+    private CMARJobManager jobManager;
     @Autowired
     private CSWService cswService;
     @Autowired
     private HttpServiceCaller serviceCaller;
 
+
+
+    private static final String WFS_CSV_FILE = "wfs.csv";
+    private static final String[] STAGE_IN_DIRECTORIES = new String[] {"bin","bin/RCS","java", "RCS", "tmp"};
+
     private static final String TABLE_DIR = "tables";
     private static final String RINEX_DIR = "rinex";
     private static final String PRE_STAGE_IN_TABLE_FILES = "/home/grid-auscope/tables/";
+    private static final String PRE_STAGE_IN_CMAR_FILES = "/home/grid-auscope/cmar/";
     private static final String IVEC_MIRROR_URL = "http://files.ivec.org/geodesy/";
     private static final String PBSTORE_RINEX_PATH = "//pbstore/cg01/geodesy/ftp.ga.gov.au/gpsdata/";
     private static final String FOR_ALL = "Common";
@@ -347,28 +351,6 @@ public class GridSubmitController {
                 new RedirectView("/gridLogin.html", true, false, false));
         }
     }*/
-
-    /**
-     * Returns a JSON object containing a list of the current user's series.
-     *
-     * @param request The servlet request
-     * @param response The servlet response
-     *
-     * @return A JSON object with a series attribute which is an array of
-     *         GeodesySeries objects.
-     */
-    @RequestMapping("/mySeries.do")
-    public ModelAndView mySeries(HttpServletRequest request,
-                                 HttpServletResponse response) {
-
-        String user = request.getRemoteUser();
-
-        logger.debug("Querying series of "+user);
-        List<GeodesySeries> series = jobManager.querySeries(user, null, null);
-
-        logger.debug("Returning list of "+series.size()+" series.");
-        return new ModelAndView("jsonView", "series", series);
-    }
     
 
     /**
@@ -396,8 +378,7 @@ public class GridSubmitController {
         String user = request.getRemoteUser();
         logger.debug("Querying code list for "+user);
         List<SimpleBean> code = new ArrayList<SimpleBean>();
-        code.add(new SimpleBean("Gamit"));
-        code.add(new SimpleBean("Burmese"));
+        code.add(new SimpleBean(CMARJob.CODE_NAME));
         
 
         logger.debug("Returning list of "+code.size()+" codeObject.");
@@ -421,7 +402,6 @@ public class GridSubmitController {
         logger.debug("Querying job types list for "+user);
         List<SimpleBean> jobType = new ArrayList<SimpleBean>();
         jobType.add(new SimpleBean("single"));
-        jobType.add(new SimpleBean("multi"));
         
 
         logger.debug("Returning list of "+jobType.size()+" jobType.");
@@ -588,21 +568,15 @@ public class GridSubmitController {
     public ModelAndView getJobObject(HttpServletRequest request,
                                      HttpServletResponse response) {
 
-        GeodesyJob job = prepareModel(request);
+        CMARJob job = prepareModel(request);
 
         logger.debug("Returning job.");
         ModelAndView result = new ModelAndView("jsonView");
 
-        GridTransferStatus status = (GridTransferStatus)request.getSession().getAttribute("gridStatus");
-        if(status == null || job == null){
+        if(job == null) {
             logger.error("Job setup failure.");
             result.addObject("success", false);
-        }else{
-        	if(status.jobSubmissionStatus == JobSubmissionStatus.Failed){
-                logger.error("Job setup failure.");
-                result.addObject("success", false);        		
-        	}
-            logger.debug("Job setup success.");
+        } else {
             result.addObject("data", job);
             result.addObject("success", true);
         }
@@ -1003,23 +977,20 @@ public class GridSubmitController {
     @RequestMapping("/submitJob.do")    
     public ModelAndView submitJob(HttpServletRequest request,
                                   HttpServletResponse response,
-                                  GeodesyJob job) {
+                                  CMARJob job) {
 
         logger.debug("Job details:\n"+job.toString());
 
-        GeodesySeries series = null;
         boolean success = true;
         final String user = request.getRemoteUser();
-        String jobInputDir = (String) request.getSession()
-            .getAttribute("jobInputDir");
-        String newSeriesName = request.getParameter("seriesName");
-        String seriesIdStr = request.getParameter("seriesId");
+
         ModelAndView mav = new ModelAndView("jsonView");
         Object credential = request.getSession().getAttribute("userCred");
 
         //Used to store Job Submission status, because there will be another request checking this.
 		GridTransferStatus gridStatus = new GridTransferStatus();
-		
+
+        //Dont let the user proceed if they dont have grid credentials
         if (credential == null) {
             //final String errorString = "Invalid grid credentials!";
             logger.error(GridSubmitController.CREDENTIAL_ERROR);
@@ -1033,142 +1004,67 @@ public class GridSubmitController {
             return mav;
         }
 
-        // if seriesName parameter was provided then we create a new series
-        // otherwise seriesId contains the id of the series to use.
-        if (newSeriesName != null && newSeriesName != "") {
-            String newSeriesDesc = request.getParameter("seriesDesc");
 
-            logger.debug("Creating new series '"+newSeriesName+"'.");
-            series = new GeodesySeries();
-            series.setUser(user);
-            series.setName(newSeriesName);
-            if (newSeriesDesc != null) {
-                series.setDescription(newSeriesDesc);
-            }
-            jobManager.saveSeries(series);
-            // Note that we can now access the series' new ID
+        Date startDate = (Date)request.getSession().getAttribute("startDate");
+        Date endDate = (Date)request.getSession().getAttribute("endDate");
+        String remoteJobInputDir = (String)request.getSession().getAttribute("jobInputDir");
+        String localJobInputDir = (String)request.getSession().getAttribute("localJobInputDir");
 
-        } else if (seriesIdStr != null && seriesIdStr != "") {
-            try {
-                int seriesId = Integer.parseInt(seriesIdStr);
-                series = jobManager.getSeriesById(seriesId);
-            } catch (NumberFormatException e) {
-                logger.error("Error parsing series ID!");
-            }
-        }
+        //job.setArguments(new String[] { job.getScriptFile() });
+        logger.info("args count: "+job.getArguments().length);
+        job.setJobType(job.getJobType().replace(",", ""));
+        JSONArray args = JSONArray.fromObject(request.getParameter("arguments"));
+        logger.info("Args in Json : "+args.toArray().length);
 
-        if (series == null) {
+        job.setArguments((String[])args.toArray(new String [args.toArray().length]));
+
+        // Create a new directory for the output files of this job
+        String jobID = generateJobDirectoryId(request) + File.separator;
+        String jobOutputDir = gridAccess.getGridFtpServer() + gridAccess.getGridFtpStageOutDir() + jobID;
+        logger.debug("jobOutputDir: "+jobOutputDir);
+
+        // Add grid stage-in directory and local stage-in directory.
+        String stageInURL = gridAccess.getGridFtpServer()+remoteJobInputDir;
+        logger.debug("stageInURL: "+stageInURL);
+
+        String localStageInURL = gridAccess.getLocalGridFtpServer() + (String) request.getSession().getAttribute("localJobInputDir");
+        job.setInTransfers(new String[]{stageInURL,localStageInURL});
+
+        logger.debug("localStageInURL: "+localStageInURL);
+
+        String submitEPR = null;
+        job.setEmailAddress(user);
+        job.setEndDate(endDate);
+        job.setStartDate(startDate);
+        job.setRemoteInputDir(remoteJobInputDir);
+        job.setRemoteOutputDir(jobOutputDir);
+        job.setLocalInputDir(localJobInputDir);
+        job.setOutTransfers(new String[] { jobOutputDir });
+
+        logger.info("Submitting job with name " + job.getName() + " to " + job.getSite());
+
+        // ACTION!
+        if(success)
+            submitEPR = gridAccess.submitJob(job, credential);
+
+        if (submitEPR == null) {
             success = false;
-            final String msg = "No valid series found. NOT submitting job!";
-            logger.error(msg);
-            gridStatus.currentStatusMsg = msg;
             gridStatus.jobSubmissionStatus = JobSubmissionStatus.Failed;
-
+            gridStatus.currentStatusMsg = GridSubmitController.INTERNAL_ERROR;
         } else {
-            String gpsFiles = (String)request.getSession().getAttribute("gridInputFiles");	
-            List<String> urlsList = GeodesyUtil.getSelectedGPSFiles(gpsFiles);
+            logger.info("SUCCESS! EPR: "+submitEPR);
+            String status = gridAccess.retrieveJobStatus(submitEPR, credential);
+            job.setReference(submitEPR);
+            jobManager.saveJob(job);
+            request.getSession().removeAttribute("jobInputDir");
+            request.getSession().removeAttribute("localJobInputDir");
 
-            //TODO add this to stageIn array
-            //List<String> localFiles = this.getLocalGPSFiles(urlsList);
-            
-            // Convert List<String> to String[]
-    		String[] urlArray = new String[urlsList.size()];
-    		urlArray = urlsList.toArray(urlArray);
-    		
-    		//Transfer job input files to Grid StageInURL
-    		if(urlsList != null && !urlsList.isEmpty()){
-        		gridStatus = urlCopy(urlArray, request);
-    		}    		
-    		    		
-    		if(gridStatus.jobSubmissionStatus != JobSubmissionStatus.Failed){
-    			
-                job.setSeriesId(series.getId());
-                //job.setArguments(new String[] { job.getScriptFile() });
-                logger.info("args count: "+job.getArguments().length);
-                job.setJobType(job.getJobType().replace(",", ""));
-                JSONArray args = JSONArray.fromObject(request.getParameter("arguments"));
-                logger.info("Args in Json : "+args.toArray().length);
-
-                job.setArguments((String[])args.toArray(new String [args.toArray().length]));
-                
-                // Create a new directory for the output files of this job
-                SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-                String dateFmt = sdf.format(new Date());
-                String jobID = user + "-" + job.getName() + "-" + dateFmt +
-                    File.separator;
-                String jobOutputDir = gridAccess.getGridFtpStageOutDir()+jobID;
-                
-                // Add grid stage-in directory and local stage-in directory.
-                String stageInURL = gridAccess.getGridFtpServer()+jobInputDir;
-                logger.debug("stagInURL: "+stageInURL);
-                                
-                if(job.getJobType().equals("single")){
-                    String localStageInURL = gridAccess.getLocalGridFtpServer()+
-                    (String) request.getSession().getAttribute("localJobInputDir");
-                    job.setInTransfers(new String[]{stageInURL,localStageInURL});
-                    
-                    logger.debug("localStagInURL: "+localStageInURL);                	
-                }
-                else{
-                	//create the base directory for multi job, because this fails on stage out.
-                	success = createGridDir(request, jobOutputDir);
-                	String localJobInputDir = (String) request.getSession().getAttribute("localJobInputDir");
-                    String localRinexStageInURL = gridAccess.getLocalGridFtpServer()+localJobInputDir
-                                                  +GridSubmitController.RINEX_DIR+File.separator;
-                    String localTablesStageInURL = gridAccess.getLocalGridFtpServer()+localJobInputDir
-                                                   +GridSubmitController.TABLE_DIR+File.separator;
-                    job.setInTransfers(new String[]{stageInURL, localRinexStageInURL, localTablesStageInURL});
-                    
-                    //Add subJobStageIns
-                	Hashtable localSubJobDir = (Hashtable) request.getSession().getAttribute("localSubJobDir");
-                	if(localSubJobDir == null)
-                		localSubJobDir = new Hashtable();
-                	job.setSubJobStageIn(localSubJobDir);
-                	logger.debug("localSubJobDir size: "+localSubJobDir.size());
-                }
-                
-
-                
-                String submitEPR = null;
-                job.setEmailAddress(user);
-                job.setOutputDir(jobOutputDir);
-                job.setOutTransfers(new String[]
-                        { gridAccess.getGridFtpServer() + jobOutputDir });
-
-                logger.info("Submitting job with name " + job.getName() +
-                        " to " + job.getSite());
-                // ACTION!
-                if(success)
-                	submitEPR = gridAccess.submitJob(job, credential);
-
-                if (submitEPR == null) {
-                    success = false;
-       				gridStatus.jobSubmissionStatus = JobSubmissionStatus.Failed;
-       				gridStatus.currentStatusMsg = GridSubmitController.INTERNAL_ERROR; 
-                } else {
-                    logger.info("SUCCESS! EPR: "+submitEPR);
-                    String status = gridAccess.retrieveJobStatus(
-                            submitEPR, credential);
-                    job.setReference(submitEPR);
-                    job.setStatus(status);
-                    job.setSubmitDate(dateFmt);
-                    jobSupplementInfo(job);
-                    jobManager.saveJob(job);
-                    request.getSession().removeAttribute("jobInputDir");
-                    request.getSession().removeAttribute("localJobInputDir");
-                    
-        			//This means job submission to the grid done.
-       				gridStatus.jobSubmissionStatus = JobSubmissionStatus.Done;
-       				gridStatus.currentStatusMsg = GridSubmitController.TRANSFER_COMPLETE; 
-                }                   			
-    		}else{
-    			success = false;
-    			logger.error(GridSubmitController.FILE_COPY_ERROR);
-                gridStatus.currentStatusMsg = GridSubmitController.FILE_COPY_ERROR;
-                gridStatus.jobSubmissionStatus = JobSubmissionStatus.Failed;
-    			mav.addObject("error", GridSubmitController.FILE_COPY_ERROR);
-    		}
+            //This means job submission to the grid done.
+            gridStatus.jobSubmissionStatus = JobSubmissionStatus.Done;
+            gridStatus.currentStatusMsg = GridSubmitController.TRANSFER_COMPLETE;
         }
+
+        
         // Save in session for status update request for this job.
         request.getSession().setAttribute("gridStatus", gridStatus);
         mav.addObject("success", success);
@@ -1176,25 +1072,19 @@ public class GridSubmitController {
         return mav;
     }
 
+    
+
     /**
-     * Method that store extra job info required for registering into Geonetwork
-     * @param job
+     * Generates a name for a directory that a job can use based on user name and timestamp
+     * @param request
+     * @return
      */
-    private void jobSupplementInfo(GeodesyJob job){
-    	StringBuilder detail = new StringBuilder();
-    	detail.append("ExecutedCode: "+job.getCode()+"\n");
-    	detail.append("Version: "+job.getVersion()+"\n");
-    	detail.append("Site: "+job.getSite()+"\n");
-    	detail.append("QueueOnSite: "+job.getQueue()+"\n");
-    	detail.append("Walltime: "+job.getMaxWallTime()+"\n");
-    	detail.append("MaxMemory: "+job.getMaxMemory()+"\n");
-    	detail.append("NumberOfCPUs: "+job.getCpuCount()+"\n");
-    	detail.append("JobType: "+job.getJobType()+"\n");
-    	detail.append("Arguments: "+job.getArguments()[0]);
-    	
-    	//We need to store this for when register
-    	job.setExtraJobDetails(detail.toString());
+    private String generateJobDirectoryId(HttpServletRequest request) {
+        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
+        String dateFmt = sdf.format(new Date());
+        return request.getRemoteUser() + "-" + dateFmt;
     }
+
     /**
      * Creates a new Job object with predefined values for some fields.
      *
@@ -1202,7 +1092,7 @@ public class GridSubmitController {
      *
      * @return The new job object.
      */
-    private GeodesyJob prepareModel(HttpServletRequest request) {
+    private CMARJob prepareModel(HttpServletRequest request) {
         final String user = request.getRemoteUser();
         final String maxWallTime = "60"; // in minutes
         final String maxMemory = "2048"; // in MB
@@ -1212,18 +1102,16 @@ public class GridSubmitController {
         final String[] arguments = new String[0];
         final String[] inTransfers = new String[0];
         final String[] outTransfers = new String[0];
-        String name = "GeodesyJob";
-        String site = "iVEC";
+        String name = "CMARJob";
+        String site = "TPAC";
         Integer cpuCount = 1;
         String version = "";
         String queue = "";
         String description = "";
-        String scriptFile = "";
-
 
         // Set a default version and queue
         String[] allVersions = gridAccess.retrieveCodeVersionsAtSite(
-                site, GeodesyJob.CODE_NAME);
+                site, CMARJob.CODE_NAME);
         if (allVersions.length > 0)
             version = allVersions[0];
 
@@ -1231,142 +1119,107 @@ public class GridSubmitController {
         if (allQueues.length > 0)
             queue = allQueues[0];
 
-        // Create a new directory to put all files for this job into.
-        // This directory will always be the first stageIn directive.
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-        String dateFmt = sdf.format(new Date());
-        String jobID = user + "-" + dateFmt + File.separator;
-        String jobInputDir = gridAccess.getGridFtpStageInDir() + jobID;
-        
-        boolean success = createGridDir(request, jobInputDir);
-        if(!success){
-        	logger.error("Setting up Grid StageIn directory failed.");
-        	return null;
-        }
+        // Create a job id to stamp our directories
+        String jobID = generateJobDirectoryId(request) + File.separator;
 
-        success = createGridDir(request, jobInputDir+GridSubmitController.RINEX_DIR+File.separator);
-        if(!success){
-        	logger.error("Setting up Grid Rinex StageIn directory failed.");
+        //create local and remote stage in directory structure
+        String remoteJobInputDir = createRemoteDir(request, jobID);
+        if(remoteJobInputDir == null){
+        	logger.error("Setting up remote StageIn directory failed.");
         	return null;
         }
-        
-        //Create local stageIn directory.
-        success = createLocalDir(request);
-        if(!success){
+        //Create local stageIn directory. (Which will mirror the remote stage in directory)
+        String localJobInputDir = createLocalDir(request, jobID);
+        if(localJobInputDir == null){
         	logger.error("Setting up local StageIn directory failed.");
         	return null;
         }
+
+        // Save the directories into the session for later use
+        request.getSession().setAttribute("localJobInputDir", localJobInputDir);
+        request.getSession().setAttribute("jobInputDir", remoteJobInputDir);
         
-        // Save in session to use it when submitting job
-        request.getSession().setAttribute("jobInputDir", jobInputDir);
-        
 
-        // Check if the user requested to re-submit a previous job.
-        String jobIdStr = (String) request.getSession().getAttribute("resubmitJob");
-        GeodesyJob existingJob = null;
-        if (jobIdStr != null) {
-            request.getSession().removeAttribute("resubmitJob");
-            logger.debug("Request to re-submit a job.");
-            try {
-                int jobId = Integer.parseInt(jobIdStr);
-                existingJob = jobManager.getJobById(jobId);
-            } catch (NumberFormatException e) {
-                logger.error("Error parsing job ID!");
-            }
-        }
 
-        if (existingJob != null) {
-            logger.debug("Using attributes of "+existingJob.getName());
-            site = existingJob.getSite();
-            version = existingJob.getVersion();
-            name = existingJob.getName()+"_resubmit";
-            scriptFile = existingJob.getScriptFile();
-            description = existingJob.getDescription();
-
-            allQueues = gridAccess.retrieveQueueNamesAtSite(site);
-            if (allQueues.length > 0)
-                queue = allQueues[0];
-
-            logger.debug("Copying files from old job to stage-in directory");
-            File srcDir = new File(existingJob.getOutputDir());
-            File destDir = new File(jobInputDir);
-            success = Util.copyFilesRecursive(srcDir, destDir);
-            if (!success) {
-                logger.error("Could not copy all files!");
-                // TODO: Let user know this didn't work
-            }
-        }
-
-        // Check if the ScriptBuilder was used. If so, there is a file in the
-        // system temp directory which needs to be staged in.
-        String newScript = (String) request.getSession().getAttribute("scriptFile");
-        if (newScript != null) {
-            request.getSession().removeAttribute("scriptFile");
-            logger.debug("Adding "+newScript+" to stage-in directory");
-            File tmpScriptFile = new File(System.getProperty("java.io.tmpdir") +
-                    File.separator+newScript+".py");
-            File newScriptFile = new File(jobInputDir, tmpScriptFile.getName());
-            success = Util.moveFile(tmpScriptFile, newScriptFile);
-            if (success) {
-                logger.info("Moved "+newScript+" to stageIn directory");
-                scriptFile = newScript+".py";
-
-                // Extract information from script file
-                ScriptParser parser = new ScriptParser();
-                try {
-                    parser.parse(newScriptFile);
-                    cpuCount = parser.getNumWorkerProcesses()+1;
-                } catch (IOException e) {
-                    logger.warn("Error parsing file: "+e.getMessage());
-                }
-            } else {
-                logger.warn("Could not move "+newScript+" to stage-in!");
-            }
-        }
-
-        logger.debug("Creating new GeodesyJob instance");
-        GeodesyJob job = new GeodesyJob(site, name, version, arguments, queue,
+        logger.debug("Creating new CMARJob instance");
+        CMARJob job = new CMARJob(site, name, version, arguments, queue,
                 maxWallTime, maxMemory, cpuCount, inTransfers, outTransfers,
                 user, stdInput, stdOutput, stdError);
 
-        job.setScriptFile(scriptFile);
         job.setDescription(description);
 
         return job;
     }
-    
 
+    /**
+     * Create stageIn directories on the remote grid server (returns path on succes, null on failure)
+     * @param request
+     * @return
+     */
+    private String createRemoteDir(HttpServletRequest request, String jobId) {
+        String jobInputDir = gridAccess.getGridFtpStageInDir() + jobId;
+
+        boolean success =  createGridDir(request, jobInputDir);
+
+        //create directory structure
+        for (int i = 0; success && i < STAGE_IN_DIRECTORIES.length; i++) {
+            success = createGridDir(request, jobInputDir + STAGE_IN_DIRECTORIES[i] + File.separator);
+        }
+
+        if (!success) {
+            logger.error("Could not create remote stageIn directories ");
+            return null;
+        }
+
+        return jobInputDir;
+    }
 
 	/** 
      * Create stageIn directories on portal host, so user can upload files easy.
      *
+     * Returns the path to the directory created (or null on failure
+     *
      */
-	private boolean createLocalDir(HttpServletRequest request) {
-		
-		final String user = request.getRemoteUser();
-        SimpleDateFormat sdf = new SimpleDateFormat("yyyyMMdd_HHmmss");
-        String dateFmt = sdf.format(new Date());
-        String jobID = user + "-" + dateFmt + File.separator;
-        String jobInputDir = gridAccess.getLocalGridFtpStageInDir() + jobID;
+	private String createLocalDir(HttpServletRequest request,String jobId) {
+        String jobInputDir = gridAccess.getLocalGridFtpStageInDir() + jobId;
         
         boolean success = (new File(jobInputDir)).mkdir();
         
-        //create rinex directory.
-        success = (new File(jobInputDir+GridSubmitController.RINEX_DIR+File.separator)).mkdir();
+        //create directory structure
+        for (int i = 0; success && i < STAGE_IN_DIRECTORIES.length; i++) {
+            success = (new File(jobInputDir + STAGE_IN_DIRECTORIES[i] + File.separator)).mkdir();
+        }
 
+        //Create our "CSV" file 
+        FileWriter fw = null;
+        try {
+            fw = new FileWriter(jobInputDir + WFS_CSV_FILE);
+            fw.write((String)request.getSession().getAttribute("selectedCSV"));
+        } catch (Exception ex) {
+            logger.error("Error writing WFS CSV file: " + ex);
+            success = false;
+        } finally {
+            try {
+                if (fw != null)
+                    fw.close();
+            } catch (Exception ex) {
+                logger.error("Error closing WFS CSV file: " + ex);
+            }
+        }
+
+        if (success)
+            success = Util.copyFilesRecursive(new File(PRE_STAGE_IN_CMAR_FILES), new File(jobInputDir));
         
         //tables files.
-        success = Util.copyFilesRecursive(new File(GridSubmitController.PRE_STAGE_IN_TABLE_FILES),
-        		                new File(jobInputDir+GridSubmitController.TABLE_DIR+File.separator));
+        /*success = Util.copyFilesRecursive(new File(GridSubmitController.PRE_STAGE_IN_TABLE_FILES),
+        		                new File(jobInputDir+GridSubmitController.TABLE_DIR+File.separator));*/
 
         if (!success) {
             logger.error("Could not create local stageIn directories ");
-            jobInputDir = gridAccess.getGridFtpStageInDir();
+            return null;
         }
-        // Save in session to use it when submitting job
-        request.getSession().setAttribute("localJobInputDir", jobInputDir);
         
-        return success;
+        return jobInputDir;
 	}
 
 	/** 

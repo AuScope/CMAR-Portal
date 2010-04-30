@@ -151,7 +151,7 @@ GridSubmit.onLoadJobObject = function(response, request) {
        Ext.getCmp('sitesCombo').getValue();
 
     // Retrieve list of job files if any
-    GridSubmit.loadJobFiles();
+    //GridSubmit.loadJobFiles();
 }
 
 ////////////////////////
@@ -469,19 +469,7 @@ GridSubmit.initialize = function() {
         listeners: { 'loadexception': GridSubmit.onLoadException }
     });
     
-    // Store for current user's list of series
-    var mySeriesStore = new Ext.data.JsonStore({
-        url: 'mySeries.do',
-        root: 'series',
-        autoLoad: true,
-        fields: [
-            { name: 'id', type: 'int' },
-            { name: 'name', type: 'string' },
-            { name: 'description', type: 'string' },
-            { name: 'user', type: 'string'}
-        ],
-        listeners: { 'loadexception': GridSubmit.onLoadException }
-    });
+    
 
 
     
@@ -597,7 +585,7 @@ GridSubmit.initialize = function() {
                     }
                     var p = new ParamLines({
                          paramID: jobID,
-                         paramLine: '-d year day -expt tig1 tig2 aust -orbt IGSF'
+                         paramLine: 'startYear endYear'
                     });
                     //add param line and stop edit the grid
                     myGrid.stopEditing();
@@ -616,64 +604,7 @@ GridSubmit.initialize = function() {
         }]
     })
     
-    var seriesForm = new Ext.FormPanel({
-        bodyStyle: 'padding:10px;',
-        id: 'seriesForm',
-        frame: true,
-        defaults: { anchor: "100%" },
-        monitorValid: true,
-        items: [{
-            xtype: 'label',
-            text: 'A grid job is always part of a job series even if it is a single job. Please specify if you want to create a new series for this job or add it to an existing one:'
-        }, {
-            xtype: 'radiogroup',
-            style: 'padding:10px;',
-            hideLabel: true,
-            items: [{
-                name: 'sCreateSelect',
-                id: 'selExistRadio',
-                boxLabel: 'Select existing series',
-                inputValue: 0,
-                checked: true,
-                handler: onSwitchCreateSelect
-            }, {
-                name: 'sCreateSelect',
-                id: 'createNewRadio',
-                boxLabel: 'Create new series',
-                inputValue: 1
-            }]
-        }, {
-            xtype: 'fieldset',
-            title: 'Series properties',
-            collapsible: false,
-            anchor: '100% -80',
-            defaults: { anchor: '100%' },
-            items: [{
-                xtype: 'combo',
-                id: 'seriesCombo',
-                name: 'seriesName',
-                editable: false,
-                mode: 'local',
-                minLength: 3,
-                allowBlank: false,
-                maskRe: /[^\W]/,
-                store: mySeriesStore,
-                triggerAction: 'all',
-                displayField: 'name',
-                tpl: '<tpl for="."><div ext:qtip="{description}" class="x-combo-list-item">{name}</div></tpl>',
-                fieldLabel: 'Series Name'
-            }, {
-                xtype: 'textarea',
-                id: 'seriesDesc',
-                name: 'seriesDesc',
-                anchor: '100% -30',
-                disabled: true,
-                fieldLabel: 'Description',
-                blankText: 'Please provide a meaningful description...',
-                allowBlank: false
-            }]
-        }]
-    });
+    
 
     Ext.getCmp('seriesCombo').on({
         'select': function(combo, record, index) {
@@ -751,7 +682,8 @@ GridSubmit.initialize = function() {
             displayField: 'value',
             emptyText: 'Select a job type...',
             fieldLabel: 'Job Type',
-            allowBlank: false
+            allowBlank: false,
+            value: 'single'
         }, {
             xtype: 'textfield',
             name: 'maxWallTime',
@@ -972,56 +904,15 @@ GridSubmit.initialize = function() {
         activeItem: 0,
         defaults: { layout:'fit', frame: true, buttonAlign: 'right' },
         items: [{
-        	id: 'card-select',
-            title: 'Step 1: Select the station list...',
-            defaults: { border: false },
-            buttons: [{
-                text: '&laquo; Previous',
-                disabled: true
-            }, {
-                text: 'Next &raquo;',
-                handler: StationSelect.okButtonHandler
-            }],
-            items: [ StationSelect.generatePanel() ]
-        },
-        {
-            id: 'card-series',
-            title: 'Step 2: Choose a job series...',
-            defaults: { border: false },
-            buttons: [{
-                text: '&laquo; Previous',
-                handler: function() {
-                	gotoStep(0);
-                }
-            }, {
-                text: 'Next &raquo;',
-                handler: validateSeries
-            }],
-            items: [ seriesForm ]
-        }, {
             id: 'card-job',
-            title: 'Step 3: Enter job details...',
+            title: 'Enter job details...',
             defaults: { border: false },
-            buttons: [{
-                text: '&laquo; Previous',
-                handler: validateMetadata.createDelegate(this, [1])
-            }, {
-                text: 'Next &raquo;',
-                handler: validateMetadata.createDelegate(this, [3])
-            }],
-            items: [ metadataForm ]
-        }, {
-            id: 'card-files',
-            title: 'Step 4: Add files to job...',
-            defaults: { border: false },
-            buttons: [{
-                text: '&laquo; Previous',
-                handler: validateMetadata.createDelegate(this, [2])
-            }, {
+            buttons: [
+            {
                 text: 'Submit',
                 handler: GridSubmit.submitJob
             }],
-            items: [ filesForm ]
+            items: [ metadataForm ]
         }]
     };
 
