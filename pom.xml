@@ -380,5 +380,11 @@
          <artifactId>slsc-common</artifactId>
          <version>1.4.0.1</version>
       </dependency>        
+      <dependency>
+      	<groupId>jfree</groupId>
+      	<artifactId>jfreechart</artifactId>
+      	<version>1.0.13</version>
+      	<optional>false</optional>
+      </dependency>
     </dependencies>
 </project>
